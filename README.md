@@ -1,2 +1,2 @@
 # Minimaxer
-Single-Criterion Optimization Solver
+Single-Criterion Optimization Solver2
