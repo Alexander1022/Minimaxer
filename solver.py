@@ -1,6 +1,6 @@
 import pulp
 
-from models import SolveRequest, SolveResponse
+from schemas import SolveRequest, SolveResponse
 
 
 def solve(req: SolveRequest) -> SolveResponse:
