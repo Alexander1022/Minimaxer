@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException
 from schemas.optimization import SolveRequest, SolveResponse
+from services.pulp_solver import solve
 
 router = APIRouter()
 
@@ -9,6 +10,9 @@ def health_check():
     return {"status": "ok"}
 
 # Optimization endpoint - tbd
-@router.post("/solve")
-def solve_problem():
-    return {"message": "Solve solve solve"}
+@router.post("/solve", response_model=SolveResponse)
+def solve_problem(req: SolveRequest) -> SolveResponse:
+    try:
+        return solve(req)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))

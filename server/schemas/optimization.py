@@ -15,7 +15,7 @@ class VariableDefinition(BaseModel):
     name: str = Field(..., examples=["x"])
     low_bound: float | None = Field(default=None)
     up_bound: float | None = Field(default=None)
-    category: str = Field(default="Continuous", examples=["Continuous", "Integer", "Binary"])
+    category: str = Field(default="Continuous", examples=["Continuous", "Integer"])
 
 # Пример 3x + 4y
 class LinearExpression(BaseModel):
