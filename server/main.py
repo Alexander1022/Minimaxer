@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.routes import router
 from core.config import settings
 
+#YANEE HEREE
 app = FastAPI(
     title=settings.APP_NAME,
     description="API Server for Minimaxer, a single-criteria decision-making tool.",
