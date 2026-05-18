@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
-from schemas.optimization import SolveRequest, SolveResponse
-from services.pulp_solver import solve
+from shared.schemas.optimization import SolveRequest, SolveResponse
+from server.services.pulp_solver import solve
 
 router = APIRouter()
 

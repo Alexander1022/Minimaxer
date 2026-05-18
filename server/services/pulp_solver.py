@@ -1,6 +1,6 @@
 import pulp
 
-from schemas.optimization import (
+from shared.schemas.optimization import (
     SolveRequest,
     SolveResponse,
     VariableResult,
