@@ -1,4 +1,5 @@
 import gradio as gr
+from gradio_modal import Modal
 
 from ui.actions import (
     add_constraint,
@@ -38,7 +39,7 @@ def create_app():
 
         open_variable_panel_btn = gr.Button("Добави променлива")
 
-        with gr.Group(visible=False) as variable_panel:
+        with Modal(visible=False) as variable_panel:
             gr.Markdown("### Добави променлива")
 
             with gr.Row():
@@ -64,7 +65,7 @@ def create_app():
                 ["y", 0, None, "Continuous"],
             ],
             row_count=(2, "dynamic"),
-            column_count=(4, "fixed"),
+            col_count=(4, "fixed"),
             interactive=True,
         )
 
@@ -72,7 +73,7 @@ def create_app():
 
         open_objective_panel_btn = gr.Button("Добави коефициент на целевата функция")
 
-        with gr.Group(visible=False) as objective_panel:
+        with Modal(visible=False) as objective_panel:
             gr.Markdown("### Добави коефициент на целевата функция")
             gr.Markdown("Пример: `5x + 3y` означава добавяне на `x = 5` и `y = 3`.")
 
@@ -92,7 +93,7 @@ def create_app():
                 ["y", 3],
             ],
             row_count=(2, "dynamic"),
-            column_count=(2, "fixed"),
+            col_count=(2, "fixed"),
             interactive=True,
         )
 
@@ -100,7 +101,7 @@ def create_app():
 
         open_constraint_panel_btn = gr.Button("Добави ограничение")
 
-        with gr.Group(visible=False) as constraint_panel:
+        with Modal(visible=False) as constraint_panel:
             gr.Markdown("### Добави ограничение")
             gr.Markdown("Пример: `2x + y <= 10` става коефициенти `x:2,y:1` <= 10.")
 
@@ -132,7 +133,7 @@ def create_app():
                 ["c2", "x:1,y:1", "<=", 7],
             ],
             row_count=(2, "dynamic"),
-            column_count=(4, "fixed"),
+            col_count=(4, "fixed"),
             interactive=True,
         )
 

@@ -1,4 +1,5 @@
 import gradio as gr
+from gradio_modal import Modal
 import requests
 from pydantic import ValidationError
 
@@ -8,10 +9,10 @@ from core.parsing import normalize_rows, parse_float, parse_required_float
 
 
 def show_panel():
-    return gr.update(visible=True)
+    return Modal(visible=True)
 
 def hide_panel():
-    return gr.update(visible=False)
+    return Modal(visible=False)
 
 def add_variable(name, low_bound, up_bound, category, current_rows):
     if not name or not str(name).strip():
@@ -30,7 +31,7 @@ def add_variable(name, low_bound, up_bound, category, current_rows):
         None,
         None,
         "Continuous",
-        gr.update(visible=False),
+        Modal(visible=False),
     )
 
 def add_objective_coefficient(variable_name, coefficient, current_rows):
