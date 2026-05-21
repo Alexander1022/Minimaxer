@@ -7,45 +7,51 @@ from api.solver_api import solve_via_api
 from core.builders import build_request
 from core.parsing import normalize_rows, parse_float, parse_required_float
 
-
 def show_panel():
     return Modal(visible=True)
 
 def hide_panel():
     return Modal(visible=False)
 
-def add_variable(name, low_bound, up_bound, category, current_rows):
+def add_variable(name, low_bound, up_bound, category, current_rows, obj_rows):
     if not name or not str(name).strip():
-        raise gr.Error("Variable name is required")
+        raise gr.Error("Името на променливата е задължително.")
 
     name = str(name).strip()
-    low_bound = parse_float(low_bound, f"Low bound for variable {name}")
-    up_bound = parse_float(up_bound, f"Upper bound for variable {name}")
+    low_val = parse_float(low_bound, f"Долна граница за {name}") if low_bound not in [None, ""] else None
+    up_val = parse_float(up_bound, f"Горна граница за {name}") if up_bound not in [None, ""] else None
 
     rows = normalize_rows(current_rows)
-    rows.append([name, low_bound, up_bound, category or "Continuous"])
+    rows.append([name, low_val, up_val, category or "Continuous"])
+
+    o_rows = normalize_rows(obj_rows)
+    if not any(str(r[0]).strip() == name for r in o_rows):
+        o_rows.append([name, 0])
+
+    choices = [str(r[0]).strip() for r in rows]
 
     return (
         rows,
+        o_rows,
+        gr.update(choices=choices),
         "",
         None,
         None,
         "Continuous",
-        Modal(visible=False),
+        gr.update(visible=False),
     )
 
 def add_objective_coefficient(variable_name, coefficient, current_rows):
     if not variable_name or not str(variable_name).strip():
-        raise gr.Error("Objective variable name is required")
+        raise gr.Error("Името на променливата в целевата функция е задължително.")
 
     variable_name = str(variable_name).strip()
     coefficient = parse_required_float(
         coefficient,
-        f"Objective coefficient for variable {variable_name}",
+        f"Коефициент на целевата функция за променлива {variable_name}",
     )
 
     rows = normalize_rows(current_rows)
-
     updated = False
 
     for row in rows:
@@ -59,34 +65,33 @@ def add_objective_coefficient(variable_name, coefficient, current_rows):
 
     return (
         rows,
-        "",
+        gr.update(value=None),
         None,
         gr.update(visible=False),
     )
 
 def add_constraint(name, coefficients_raw, operator, rhs, current_rows):
     if not coefficients_raw or not str(coefficients_raw).strip():
-        raise gr.Error("Constraint coefficients are required. Example: x:2,y:1")
+        raise gr.Error("Коефициентите на ограничението са задължителни. Пример: x:2,y:1")
 
     if not operator:
-        raise gr.Error("Constraint operator is required")
+        raise gr.Error("Операторът на ограничението е задължителен.")
 
-    rhs = parse_required_float(rhs, f"RHS for constraint {name or 'unnamed'}")
-
+    rhs = parse_required_float(rhs, f"Дясна страна за ограничение {name or 'без_име'}")
     coefficients_raw = str(coefficients_raw).strip()
 
     for part in coefficients_raw.split(","):
         if ":" not in part:
-            raise gr.Error(f"Invalid coefficient part: {part}. Use format x:2,y:1")
+            raise gr.Error(f"Невалиден формат за коефициент: {part}. Използвайте формат x:2,y:1")
 
         var_name, coef = part.split(":", 1)
 
         if not var_name.strip():
-            raise gr.Error("Variable name in constraint cannot be empty")
+            raise gr.Error("Името на променливата в ограничението не може да бъде празно.")
 
         parse_required_float(
             coef.strip(),
-            f"Coefficient for variable {var_name.strip()} in constraint {name or 'unnamed'}",
+            f"Коефициент за променлива {var_name.strip()} в ограничение {name or 'без_име'}",
         )
 
     rows = normalize_rows(current_rows)
@@ -141,7 +146,7 @@ def solve_from_ui(problem_name, direction, variables_table, objective_table, con
             request_json,
             saved_solutions,
             gr.update(choices=saved_names, value=req.name),
-            f"Saved solution as: {req.name}",
+            f"Успешно! Решението е запазено като: {req.name}",
         )
 
     except (ValueError, ValidationError, KeyError, requests.RequestException) as exc:
@@ -151,7 +156,7 @@ def solve_from_ui(problem_name, direction, variables_table, objective_table, con
             None,
             saved_solutions or {},
             gr.update(),
-            f"Error: {exc}",
+            f"Грешка: {exc}",
         )
 
 def load_saved_solution(selected_name, saved_solutions):
