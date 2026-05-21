@@ -29,34 +29,37 @@ def preview_problem(problem_name, direction, variables_table, objective_table, c
             constraints_table,
         )
 
+        bg_direction = "Максимизиране" if req.direction == "maximize" else "Минимизиране"
+
         lines = [
-            f"## {req.name}",
+            f"## Задача: {req.name}",
             "",
-            f"**Direction:** `{req.direction}`",
+            f"**Посока:** `{bg_direction}`",
             "",
-            "### Objective",
+            "### Целева функция",
             "",
-            f"`{req.direction} {format_expression(req.objective.coefficients)}`",
+            f"`{bg_direction} {format_expression(req.objective.coefficients)}`",
             "",
-            "### Variables",
+            "### Променливи",
             "",
         ]
 
         if not req.variables:
-            lines.append("_No variables defined._")
+            lines.append("_Няма дефинирани променливи._")
         else:
             for var in req.variables:
+                cat_bg = var.category.replace("Continuous", "Непрекъсната").replace("Integer", "Целочислена").replace("Binary", "Булева")
                 lines.append(
-                    f"- `{var.name}` | low: `{var.low_bound}` | up: `{var.up_bound}` | category: `{var.category}`"
+                    f"- `{var.name}` | долна граница: `{var.low_bound}` | горна граница: `{var.up_bound}` | категория: `{cat_bg}`"
                 )
 
-        lines.extend(["", "### Constraints", ""])
+        lines.extend(["", "### Ограничения", ""])
 
         if not req.constraints:
-            lines.append("_No constraints defined._")
+            lines.append("_Няма дефинирани ограничения._")
         else:
             for constraint in req.constraints:
-                label = constraint.name or "unnamed"
+                label = constraint.name or "без_име"
                 expr = format_expression(constraint.coefficients)
                 lines.append(
                     f"- `{label}`: `{expr} {constraint.operator} {constraint.rhs}`"
@@ -65,4 +68,4 @@ def preview_problem(problem_name, direction, variables_table, objective_table, c
         return "\n".join(lines)
 
     except (ValueError, ValidationError, KeyError) as exc:
-        return f"### Preview error\n\n`{exc}`"
+        return f"### Грешка при прегледа\n\n`{exc}`"
