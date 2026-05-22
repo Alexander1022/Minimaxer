@@ -5,10 +5,17 @@ from ui.actions import (
     add_constraint,
     add_objective_coefficient,
     add_variable,
+    delete_solution,
+    handle_overwrite,
+    handle_rename,
     hide_panel,
     load_saved_solution,
+    reconstruct_ui_inputs,
     show_panel,
     solve_from_ui,
+    solve_only,
+    toggle_preview,
+    update_history_summary,
 )
 from ui.preview import preview_problem
 
@@ -16,7 +23,35 @@ def create_app():
     with gr.Blocks(theme=gr.Theme.from_hub("harsh8001/skymist"), title="Еднокритериална Оптимизация") as app:
         gr.Markdown("# Minimaxer")
         
-        saved_solutions = gr.State({})
+        # 1. State Management
+        saved_solutions = gr.BrowserState(storage_key="minimaxer_history", default_value={})
+        pending_request = gr.State({})
+
+        with gr.Sidebar():
+            gr.Markdown("## Управление на задачи")
+            
+            with gr.Group(visible=False) as conflict_ui:
+                gr.Markdown("### ⚠️ Име вече съществува")
+                gr.Markdown("Задача с това име вече е запазена. Изберете действие:")
+                with gr.Row():
+                    overwrite_btn = gr.Button("Презапиши", variant="primary")
+                gr.Markdown("--- или запишете с ново име ---")
+                new_name_input = gr.Textbox(label="Ново име", placeholder="Въведете ново име...")
+                rename_save_btn = gr.Button("Запази с ново име", variant="secondary")
+
+            gr.Markdown("### Запазени решения")
+            saved_dropdown = gr.Dropdown(
+                label="Зареждане от списъка",
+                choices=[],
+                interactive=True,
+            )
+            
+            with gr.Row():
+                load_btn = gr.Button("Зареди", variant="secondary", scale=2)
+                delete_btn = gr.Button("Изтрий", variant="stop", scale=1)
+
+            gr.Markdown("### Обобщение на историята")
+            history_summary = gr.Markdown("Няма запазени решения.")
 
         with gr.Tabs():
             with gr.Tab("1. Модел и Променливи"):
@@ -129,9 +164,10 @@ def create_app():
             with gr.Tab("3. Преглед и Решаване"):
                 with gr.Row():
                     preview_btn = gr.Button("Преглед на модела")
-                    solve_btn = gr.Button("Реши задачата", variant="primary")
+                    solve_btn = gr.Button("Реши и Запази", variant="primary")
+                    solve_only_btn = gr.Button("Реши", variant="primary")
 
-                preview_output = gr.Markdown(label="Математически преглед")
+                preview_output = gr.Markdown(label="Математически преглед", visible=False)
                 status_message = gr.Textbox(label="Статус", interactive=False)
 
                 gr.Markdown("### Резултати")
@@ -146,20 +182,23 @@ def create_app():
                         request_output = gr.JSON(label="Изпратена заявка")
                         response_output = gr.JSON(label="Отговор от решаващия модул")
 
-            with gr.Tab("4. Запазени решения"):
-                gr.Markdown("### Зареждане на предишни решения")
-                with gr.Row():
-                    saved_dropdown = gr.Dropdown(
-                        label="Изберете запазено решение",
-                        choices=[],
-                        interactive=True,
-                        scale=3
-                    )
-                    load_btn = gr.Button("Зареди", scale=1)
-
+            with gr.Tab("4. Запазени решения (Детайли)"):
+                gr.Markdown("### Преглед на запазени данни")
                 with gr.Row():
                     saved_request_output = gr.JSON(label="Запазена заявка")
                     saved_response_output = gr.JSON(label="Запазен отговор")
+
+        # --- Event Handlers ---
+        
+        # Standard output tuple for solve-related actions
+        solve_outputs = [
+            conflict_ui, pending_request, response_output, result_table, 
+            request_output, saved_solutions, saved_dropdown, history_summary, status_message
+        ]
+
+        # Initialization (load summary on start)
+        app.load(fn=update_history_summary, inputs=saved_solutions, outputs=history_summary)
+        app.load(lambda s: gr.update(choices=list(s.keys()) if s else []), inputs=saved_solutions, outputs=saved_dropdown)
 
         open_variable_panel_btn.click(fn=show_panel, outputs=variable_panel)
         cancel_variable_btn.click(fn=hide_panel, outputs=variable_panel)
@@ -202,21 +241,49 @@ def create_app():
         )
 
         preview_btn.click(
-            fn=preview_problem,
-            inputs=[problem_name, direction, variables_table, objective_table, constraints_table],
-            outputs=preview_output,
+            fn=toggle_preview,
+            inputs=[preview_btn, problem_name, direction, variables_table, objective_table, constraints_table],
+            outputs=[preview_output, preview_btn],
         )
 
         solve_btn.click(
             fn=solve_from_ui,
             inputs=[problem_name, direction, variables_table, objective_table, constraints_table, saved_solutions],
-            outputs=[response_output, result_table, request_output, saved_solutions, saved_dropdown, status_message],
+            outputs=solve_outputs,
+        )
+
+        solve_only_btn.click(
+            fn=solve_only,
+            inputs=[problem_name, direction, variables_table, objective_table, constraints_table],
+            outputs=solve_outputs,
+        )
+
+        overwrite_btn.click(
+            fn=handle_overwrite,
+            inputs=[pending_request, saved_solutions],
+            outputs=solve_outputs,
+        )
+
+        rename_save_btn.click(
+            fn=handle_rename,
+            inputs=[new_name_input, pending_request, saved_solutions],
+            outputs=solve_outputs,
         )
 
         load_btn.click(
+            fn=reconstruct_ui_inputs,
+            inputs=[saved_dropdown, saved_solutions],
+            outputs=[problem_name, direction, variables_table, objective_table, constraints_table, response_output]
+        ).then(
             fn=load_saved_solution,
             inputs=[saved_dropdown, saved_solutions],
-            outputs=[saved_request_output, saved_response_output],
+            outputs=[saved_request_output, saved_response_output]
+        )
+        
+        delete_btn.click(
+            fn=delete_solution,
+            inputs=[saved_dropdown, saved_solutions],
+            outputs=[saved_solutions, saved_dropdown, history_summary, status_message]
         )
 
     return app
