@@ -1,11 +1,60 @@
 import gradio as gr
 from gradio_modal import Modal
-import requests
-from pydantic import ValidationError
 
-from api.solver_api import solve_via_api
-from core.builders import build_request
-from core.parsing import normalize_rows, parse_float, parse_required_float
+from client.api.solver_api import solve_via_api
+from client.core.builders import build_request
+from client.core.parsing import normalize_rows, parse_float, parse_required_float
+
+# --- Internal Helpers (DRY Principle) ---
+
+def _format_solver_response(req, response_json, saved_solutions=None, status_prefix="Успешно!"):
+    """Consolidates the 9-tuple output for solver-related actions."""
+    variables_result = []
+    if response_json.get("variables"):
+        variables_result = [[v["name"], v["value"]] for v in response_json["variables"]]
+
+    request_json = req.model_dump(mode="json")
+    
+    if saved_solutions is not None:
+        saved_solutions[req.name] = {"request": request_json, "response": response_json}
+        saved_names = list(saved_solutions.keys())
+        summary = update_history_summary(saved_solutions)
+        dropdown_update = gr.update(choices=saved_names, value=req.name)
+        msg = f"{status_prefix} Решението е запазено като: {req.name}"
+    else:
+        # Solve only mode - skip history updates
+        saved_solutions = gr.update()
+        dropdown_update = gr.update()
+        summary = gr.update()
+        msg = f"{status_prefix} (Решението не е запазено)"
+
+    return (
+        gr.update(visible=False), # conflict_ui
+        {},                       # pending_request
+        response_json,
+        variables_result,
+        request_json,
+        saved_solutions,
+        dropdown_update,
+        summary,
+        msg,
+    )
+
+def _format_solver_error(exc, saved_solutions=None):
+    """Unified error handling for solver actions."""
+    return (
+        gr.update(visible=False),
+        {},
+        {"error": str(exc)},
+        [],
+        None,
+        saved_solutions if saved_solutions is not None else gr.update(),
+        gr.update(),
+        gr.update(),
+        f"Грешка: {exc}",
+    )
+
+# --- UI Actions ---
 
 def show_panel():
     return Modal(visible=True)
@@ -85,7 +134,6 @@ def add_constraint(name, coefficients_raw, operator, rhs, current_rows):
             raise gr.Error(f"Невалиден формат за коефициент: {part}. Използвайте формат x:2,y:1")
 
         var_name, coef = part.split(":", 1)
-
         if not var_name.strip():
             raise gr.Error("Името на променливата в ограничението не може да бъде празно.")
 
@@ -113,51 +161,118 @@ def add_constraint(name, coefficients_raw, operator, rhs, current_rows):
 
 def solve_from_ui(problem_name, direction, variables_table, objective_table, constraints_table, saved_solutions):
     try:
-        req = build_request(
-            problem_name,
-            direction,
-            variables_table,
-            objective_table,
-            constraints_table,
-        )
+        req = build_request(problem_name, direction, variables_table, objective_table, constraints_table)
+        
+        # Collision check
+        if saved_solutions and problem_name in saved_solutions:
+            return (
+                gr.update(visible=True),  # Show conflict UI
+                req.model_dump(mode="json"), # Store in pending_request
+                gr.update(), gr.update(), gr.update(), gr.update(), 
+                gr.update(), gr.update(),
+                "Забелязан конфликт в имената. Моля, изберете действие в страничния панел."
+            )
 
-        request_json = req.model_dump(mode="json")
+        return perform_solve_and_save(req, saved_solutions)
+
+    except Exception as exc:
+        return _format_solver_error(exc, saved_solutions)
+
+def perform_solve_and_save(req, saved_solutions):
+    try:
         response_json = solve_via_api(req)
+        return _format_solver_response(req, response_json, saved_solutions)
+    except Exception as exc:
+        return _format_solver_error(exc, saved_solutions)
 
-        variables_result = []
+def handle_overwrite(pending_req_json, saved_solutions):
+    from shared.schemas.optimization import SolveRequest
+    req = SolveRequest.model_validate(pending_req_json)
+    return perform_solve_and_save(req, saved_solutions)
 
-        if response_json.get("variables"):
-            variables_result = [
-                [v["name"], v["value"]]
-                for v in response_json["variables"]
-            ]
+def handle_rename(new_name, pending_req_json, saved_solutions):
+    if not new_name or not str(new_name).strip():
+        raise gr.Error("Моля, въведете валидно ново име.")
+    
+    from shared.schemas.optimization import SolveRequest
+    req_data = pending_req_json.copy()
+    req_data["name"] = str(new_name).strip()
+    return perform_solve_and_save(SolveRequest.model_validate(req_data), saved_solutions)
 
-        saved_solutions = saved_solutions or {}
-        saved_solutions[req.name] = {
-            "request": request_json,
-            "response": response_json,
-        }
+def solve_only(problem_name, direction, variables_table, objective_table, constraints_table):
+    try:
+        req = build_request(problem_name, direction, variables_table, objective_table, constraints_table)
+        response_json = solve_via_api(req)
+        return _format_solver_response(req, response_json)
+    except Exception as exc:
+        return _format_solver_error(exc)
 
-        saved_names = list(saved_solutions.keys())
+def delete_solution(selected_name, saved_solutions):
+    if not selected_name or not saved_solutions or selected_name not in saved_solutions:
+        return saved_solutions, gr.update(), gr.update(), "Няма избрана задача за изтриване."
+    
+    del saved_solutions[selected_name]
+    saved_names = list(saved_solutions.keys())
+    summary = update_history_summary(saved_solutions)
+    
+    return (
+        saved_solutions,
+        gr.update(choices=saved_names, value=None),
+        summary,
+        f"Задачата '{selected_name}' беше изтрита."
+    )
 
-        return (
-            response_json,
-            variables_result,
-            request_json,
-            saved_solutions,
-            gr.update(choices=saved_names, value=req.name),
-            f"Успешно! Решението е запазено като: {req.name}",
-        )
+def toggle_preview(btn_text, problem_name, direction, variables_table, objective_table, constraints_table):
+    from ui.preview import preview_problem
+    if btn_text == "Скрий прегледа":
+        return gr.update(visible=False), "Покажи преглед"
+    else:
+        content = preview_problem(problem_name, direction, variables_table, objective_table, constraints_table)
+        return gr.update(value=content, visible=True), "Скрий прегледа"
 
-    except (ValueError, ValidationError, KeyError, requests.RequestException) as exc:
-        return (
-            {"error": str(exc)},
-            [],
-            None,
-            saved_solutions or {},
-            gr.update(),
-            f"Грешка: {exc}",
-        )
+def reconstruct_ui_inputs(selected_name, saved_solutions):
+    if not selected_name or not saved_solutions or selected_name not in saved_solutions:
+        return [gr.update()] * 6
+
+    req = saved_solutions[selected_name]["request"]
+    
+    # 1. Variables
+    var_rows = [[v["name"], v.get("low_bound"), v.get("up_bound"), v.get("category", "Continuous")] 
+                for v in req.get("variables", [])]
+    
+    # 2. Objective
+    obj_rows = [[var_name, coef] for var_name, coef in req.get("objective", {}).get("coefficients", {}).items()]
+    
+    # 3. Constraints
+    const_rows = []
+    for c in req.get("constraints", []):
+        coef_str = ",".join([f"{k}:{v}" for k, v in c.get("coefficients", {}).items()])
+        const_rows.append([c.get("name"), coef_str, c.get("operator"), c.get("rhs")])
+
+    return (
+        req.get("name"),
+        req.get("direction"),
+        var_rows,
+        obj_rows,
+        const_rows,
+        saved_solutions[selected_name]["response"]
+    )
+
+def update_history_summary(saved_solutions):
+    if not saved_solutions:
+        return "Няма запазени решения."
+    
+    lines = [""]
+    for name, data in saved_solutions.items():
+        resp = data.get("response", {})
+        status = resp.get("status", "Unknown")
+        obj_val = resp.get("objective_value")
+        if obj_val is not None:
+            lines.append(f"- **{name}**: {status} (Цел: {obj_val:.2f})")
+        else:
+            lines.append(f"- **{name}**: {status}")
+            
+    return "\n".join(lines)
 
 def load_saved_solution(selected_name, saved_solutions):
     if not selected_name or not saved_solutions or selected_name not in saved_solutions:
