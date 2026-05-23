@@ -1,18 +1,26 @@
+import re
 import gradio as gr
 from gradio_modal import Modal
+import pandas as pd
 
 from client.api.solver_api import solve_via_api
 from client.core.builders import build_request
 from client.core.parsing import normalize_rows, parse_float, parse_required_float
 
-# --- Internal Helpers (DRY Principle) ---
+def initialize_saved_data(state):
+    if not state:
+        state = {}
+        
+    choices = list(state.keys())
+    summary = update_history_summary(state)
+    
+    return summary, gr.update(choices=choices)
 
 def _format_solver_response(req, response_json, saved_solutions=None, status_prefix="Успешно!"):
-    """Consolidates the 9-tuple output for solver-related actions."""
     variables_result = []
     if response_json.get("variables"):
         variables_result = [[v["name"], v["value"]] for v in response_json["variables"]]
-
+    obj_val = response_json.get("objective_value", "Няма стойност")
     request_json = req.model_dump(mode="json")
     
     if saved_solutions is not None:
@@ -22,16 +30,16 @@ def _format_solver_response(req, response_json, saved_solutions=None, status_pre
         dropdown_update = gr.update(choices=saved_names, value=req.name)
         msg = f"{status_prefix} Решението е запазено като: {req.name}"
     else:
-        # Solve only mode - skip history updates
         saved_solutions = gr.update()
         dropdown_update = gr.update()
         summary = gr.update()
         msg = f"{status_prefix} (Решението не е запазено)"
 
     return (
-        gr.update(visible=False), # conflict_ui
-        {},                       # pending_request
+        gr.update(visible=False),
+        {},                      
         response_json,
+        str(obj_val),
         variables_result,
         request_json,
         saved_solutions,
@@ -41,20 +49,18 @@ def _format_solver_response(req, response_json, saved_solutions=None, status_pre
     )
 
 def _format_solver_error(exc, saved_solutions=None):
-    """Unified error handling for solver actions."""
     return (
         gr.update(visible=False),
         {},
-        {"error": str(exc)},
+        {"error": str(exc)},      
+        "",
         [],
-        None,
+        None,          
         saved_solutions if saved_solutions is not None else gr.update(),
         gr.update(),
         gr.update(),
         f"Грешка: {exc}",
     )
-
-# --- UI Actions ---
 
 def show_panel():
     return Modal(visible=True)
@@ -163,12 +169,11 @@ def solve_from_ui(problem_name, direction, variables_table, objective_table, con
     try:
         req = build_request(problem_name, direction, variables_table, objective_table, constraints_table)
         
-        # Collision check
         if saved_solutions and problem_name in saved_solutions:
             return (
-                gr.update(visible=True),  # Show conflict UI
-                req.model_dump(mode="json"), # Store in pending_request
-                gr.update(), gr.update(), gr.update(), gr.update(), 
+                gr.update(visible=True),
+                req.model_dump(mode="json"),
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), 
                 gr.update(), gr.update(),
                 "Забелязан конфликт в имената. Моля, изберете действие в страничния панел."
             )
@@ -236,14 +241,11 @@ def reconstruct_ui_inputs(selected_name, saved_solutions):
 
     req = saved_solutions[selected_name]["request"]
     
-    # 1. Variables
     var_rows = [[v["name"], v.get("low_bound"), v.get("up_bound"), v.get("category", "Continuous")] 
                 for v in req.get("variables", [])]
     
-    # 2. Objective
     obj_rows = [[var_name, coef] for var_name, coef in req.get("objective", {}).get("coefficients", {}).items()]
     
-    # 3. Constraints
     const_rows = []
     for c in req.get("constraints", []):
         coef_str = ",".join([f"{k}:{v}" for k, v in c.get("coefficients", {}).items()])

@@ -16,6 +16,7 @@ from ui.actions import (
     solve_only,
     toggle_preview,
     update_history_summary,
+    initialize_saved_data
 )
 from ui.preview import preview_problem
 
@@ -23,7 +24,6 @@ def create_app():
     with gr.Blocks(theme=gr.Theme.from_hub("harsh8001/skymist"), title="Еднокритериална Оптимизация") as app:
         gr.Markdown("# Minimaxer")
         
-        # 1. State Management
         saved_solutions = gr.BrowserState(storage_key="minimaxer_history", default_value={})
         pending_request = gr.State({})
 
@@ -40,6 +40,7 @@ def create_app():
                 rename_save_btn = gr.Button("Запази с ново име", variant="secondary")
 
             gr.Markdown("### Запазени решения")
+            refresh_btn = gr.Button("Опресни запазените", variant="secondary", size="sm")
             saved_dropdown = gr.Dropdown(
                 label="Зареждане от списъка",
                 choices=[],
@@ -75,8 +76,9 @@ def create_app():
                     gr.Markdown("### Нова променлива")
                     with gr.Row():
                         variable_name_input = gr.Textbox(label="Име", placeholder="x1")
-                        variable_low_input = gr.Number(label="Долна граница", value=None)
-                        variable_up_input = gr.Number(label="Горна граница", value=None)
+                        # Оставяме ги като текст, за да позволяват празни стойности
+                        variable_low_input = gr.Textbox(label="Долна граница", placeholder="напр. 0 (или оставете празно)")
+                        variable_up_input = gr.Textbox(label="Горна граница", placeholder="напр. 100 (или оставете празно)")
 
                     variable_category_input = gr.Dropdown(
                         label="Категория",
@@ -89,12 +91,15 @@ def create_app():
                         add_variable_btn = gr.Button("Добави", variant="primary")
                         cancel_variable_btn = gr.Button("Отказ")
 
+                # Променяме datatype изцяло на текст ("str"), за да може да има празни клетки (""),
+                # които бекендът ви превръща в None.
                 variables_table = gr.Dataframe(
                     label="Списък с променливи",
                     headers=["име", "долна граница", "горна граница", "категория"],
+                    datatype=["str", "str", "str", "str"],
                     value=[
-                        ["x", None, None, "Continuous"],
-                        ["y", None, None, "Continuous"],
+                        ["x", "", "", "Continuous"],
+                        ["y", "", "", "Continuous"],
                     ],
                     row_count=(2, "dynamic"),
                     col_count=(4, "fixed"),
@@ -112,7 +117,7 @@ def create_app():
                             gr.Markdown("Пример: За 5x изберете променлива x и въведете коефициент 5.")
                             with gr.Row():
                                 objective_variable_input = gr.Dropdown(label="Променлива", choices=["x", "y"])
-                                objective_coefficient_input = gr.Number(label="Коефициент", value=None)
+                                objective_coefficient_input = gr.Textbox(label="Коефициент", placeholder="Напр. 5")
                             with gr.Row():
                                 add_objective_btn = gr.Button("Добави", variant="primary")
                                 cancel_objective_btn = gr.Button("Отказ")
@@ -120,6 +125,7 @@ def create_app():
                         objective_table = gr.Dataframe(
                             label="Коефициенти",
                             headers=["променлива", "коефициент"],
+                            datatype=["str", "str"],
                             value=[["x", 0], ["y", 0]],
                             row_count=(2, "dynamic"),
                             col_count=(2, "fixed"),
@@ -143,7 +149,7 @@ def create_app():
                                     choices=["<=", ">=", "=="],
                                     value="<=",
                                 )
-                                constraint_rhs_input = gr.Number(label="Дясна страна", value=None)
+                                constraint_rhs_input = gr.Textbox(label="Дясна страна", placeholder="Напр. 10")
                                 
                             with gr.Row():
                                 add_constraint_btn = gr.Button("Добави", variant="primary")
@@ -152,6 +158,7 @@ def create_app():
                         constraints_table = gr.Dataframe(
                             label="Списък с ограничения",
                             headers=["име", "коефициенти", "оператор", "дясна страна"],
+                            datatype=["str", "str", "str", "str"],
                             value=[
                                 ["c1", "x:2,y:1", "<=", 10],
                                 ["c2", "x:1,y:1", "<=", 7],
@@ -171,6 +178,7 @@ def create_app():
                 status_message = gr.Textbox(label="Статус", interactive=False)
 
                 gr.Markdown("### Резултати")
+                objective_value_output = gr.Textbox(label="Оптимална стойност на целевата функция", interactive=False)
                 result_table = gr.Dataframe(
                     label="Стойности на променливите",
                     headers=["име", "стойност"],
@@ -188,17 +196,33 @@ def create_app():
                     saved_request_output = gr.JSON(label="Запазена заявка")
                     saved_response_output = gr.JSON(label="Запазен отговор")
 
-        # --- Event Handlers ---
-        
-        # Standard output tuple for solve-related actions
         solve_outputs = [
-            conflict_ui, pending_request, response_output, result_table, 
+            conflict_ui, pending_request, response_output, 
+            objective_value_output, result_table,
             request_output, saved_solutions, saved_dropdown, history_summary, status_message
         ]
 
-        # Initialization (load summary on start)
-        app.load(fn=update_history_summary, inputs=saved_solutions, outputs=history_summary)
-        app.load(lambda s: gr.update(choices=list(s.keys()) if s else []), inputs=saved_solutions, outputs=saved_dropdown)
+        saved_solutions.change(
+            fn=update_history_summary, 
+            inputs=saved_solutions, 
+            outputs=history_summary
+        )
+        saved_solutions.change(
+            fn=lambda s: gr.update(choices=list(s.keys()) if s else [], value=None), 
+            inputs=saved_solutions, 
+            outputs=saved_dropdown
+        )
+
+        app.load(
+            fn=initialize_saved_data,
+            inputs=[saved_solutions],
+            outputs=[history_summary, saved_dropdown]
+        )
+        refresh_btn.click(
+            fn=initialize_saved_data,
+            inputs=[saved_solutions],
+            outputs=[history_summary, saved_dropdown]
+        )
 
         open_variable_panel_btn.click(fn=show_panel, outputs=variable_panel)
         cancel_variable_btn.click(fn=hide_panel, outputs=variable_panel)
