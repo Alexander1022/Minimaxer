@@ -14,6 +14,22 @@ pip install -r requirements.txt
 uvicorn main:app --reload
 ```
 
+## Running in docker continer
+
+```bash
+./start.sh        # build + up -d
+./logs.sh         # tail
+./stop.sh         # down
+```
+## After starting 
+
+```text
+http://localhost:8000/ — root
+http://localhost:8000/api/health — healthcheck
+http://localhost:8000/api/solve — POST endpoint
+http://localhost:8000/docs — Swagger UI
+```
+
 Interactive API docs: `http://localhost:8000/docs`
 
 ## Endpoint

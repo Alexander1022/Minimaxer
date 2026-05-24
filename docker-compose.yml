@@ -1,0 +1,20 @@
+services:
+  lp-solver:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    image: minimaxer-server:latest
+    container_name: minimaxer-server
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      # Override CORS origins if needed, e.g.:
+      # - ALLOWED_ORIGINS=["http://localhost:3000"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
