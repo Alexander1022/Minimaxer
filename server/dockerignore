@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# PuLP solver files
+*.lp
+*.mps
+*.sol
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git / Docker
+.git
+.gitignore
+Dockerfile
+.dockerignore
+
+# Tests — exclude from image (remove this line if you want them inside)
+test/
+tests/
