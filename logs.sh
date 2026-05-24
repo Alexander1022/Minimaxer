@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# Usage:
+#   ./logs.sh             # all services
+#   ./logs.sh server      # just the API server
+#   ./logs.sh client      # just the Gradio client
 set -euo pipefail
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -13,4 +17,4 @@ else
     exit 1
 fi
 
-$COMPOSE logs -f --tail=100
+$COMPOSE logs -f --tail=100 "$@"

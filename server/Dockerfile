@@ -13,10 +13,11 @@ RUN apt-get update \
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+COPY server/requirements.txt ./server/requirements.txt
+RUN pip install -r ./server/requirements.txt
 
-COPY . .
+COPY server/ ./server/
+COPY shared/ ./shared/
 
 RUN useradd --create-home --shell /bin/bash appuser \
     && chown -R appuser:appuser /app
@@ -27,4 +28,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -fsS http://localhost:8000/api/health > /dev/null || exit 1
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000"]

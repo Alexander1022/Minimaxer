@@ -1,8 +1,8 @@
 services:
-  lp-solver:
+  server:
     build:
-      context: ./server
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: server/Dockerfile
     image: minimaxer-server:latest
     container_name: minimaxer-server
     restart: unless-stopped
@@ -18,3 +18,33 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    networks:
+      - minimaxer-net
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    image: minimaxer-client:latest
+    container_name: minimaxer-client
+    restart: unless-stopped
+    ports:
+      - "7860:7860"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - API_BASE_URL=http://server:8000/api
+    depends_on:
+      server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:7860/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - minimaxer-net
+
+networks:
+  minimaxer-net:
+    driver: bridge
