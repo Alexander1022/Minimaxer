@@ -1,4 +1,5 @@
 import numpy as np
+import math
 
 from shared.schemas.topsis import (
     SolveRequest,
@@ -29,9 +30,12 @@ def solve(req: SolveRequest) -> SolveResponse:
     weights = np.array(
         [c.weight for c in req.criterias], dtype=float
     )
+    
+    if not math.isclose(np.sum(weights), 1.0, rel_tol=1e-5):
+        raise ValueError(f"Сумата на тежестите трябва да е 1.0, а в момента е {np.sum(weights):.4f}")
     benefit = np.array(
         [c.direction == CriteriaDirection.MAXIMIZE for c in req.criterias],
-        dtypr=float
+        dtype=bool
     )
 
     col_norms = np.sqrt((matrix**2).sum(axis=0))
