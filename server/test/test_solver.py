@@ -48,6 +48,7 @@ EXAMPLE_PAYLOAD = {
   ]
 }
 
+# TODO: Fix the tests because the path is no longer `/api/solve`
 
 def test_max_example():
     resp = client.post("/api/solve", json=EXAMPLE_PAYLOAD)

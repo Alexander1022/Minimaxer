@@ -37,4 +37,4 @@ class RankedAlternative(BaseModel):
 class SolveResponse(BaseModel):
     problem_name: str
     status: str
-    rankings: list[RankedAlternative] = Field(..., description="Подредени алтернативи")
+    rankings: list[RankedAlternative] = Field(..., description="Подредени алтернативи") 
