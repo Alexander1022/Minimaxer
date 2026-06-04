@@ -13,7 +13,7 @@ else
     exit 1
 fi
 
-echo "==> Stopping container..."
+echo "==> Stopping containers..."
 $COMPOSE down "$@"
 
 echo "==> Done."

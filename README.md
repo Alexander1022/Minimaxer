@@ -8,7 +8,7 @@ A FastAPI service that solves linear programming (LP) and integer linear program
 pip install -r requirements.txt
 ```
 
-## Running the server
+## Running the server ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
 
 ```bash
 uvicorn main:app --reload
@@ -31,6 +31,12 @@ http://localhost:8000/docs — Swagger UI
 ```
 
 Interactive API docs: `http://localhost:8000/docs`
+
+## Running the client ![Gradio](https://img.shields.io/badge/Gradio-F97316?logo=gradio&logoColor=white)
+
+```bash
+python3 client/app.py
+```
 
 ## Endpoint
 
@@ -87,7 +93,7 @@ Any variable name used in `objective` or `constraints` that is absent from `vari
 
 `objective_value` and `variables` are `null` when the status is not `"Optimal"` (e.g. `"Infeasible"`, `"Unbounded"`).
 
-## Running tests
+## Running tests ![pytest](https://img.shields.io/badge/pytest-0A9EDC?style=for-the-badge&logo=pytest&logoColor=white)
 
 ```bash
 pytest tests/ -v

@@ -13,10 +13,10 @@ else
     exit 1
 fi
 
-echo "==> Building image..."
+echo "==> Building images..."
 $COMPOSE build
 
-echo "==> Starting container in detached mode..."
+echo "==> Starting containers in detached mode..."
 $COMPOSE up -d
 
 echo
@@ -24,11 +24,12 @@ echo "==> Container status:"
 $COMPOSE ps
 
 echo
-echo "Minimaxer API is running:"
-echo "  Root:    http://localhost:8000/"
-echo "  Health:  http://localhost:8000/api/health"
-echo "  Solve:   http://localhost:8000/api/solve   (POST)"
-echo "  Docs:    http://localhost:8000/docs"
+echo "Minimaxer is running:"
+echo "  Client (UI):    http://localhost:7860/"
+echo "  Server (API):   http://localhost:8000/"
+echo "  API docs:       http://localhost:8000/docs"
+echo "  API health:     http://localhost:8000/api/health"
 echo
-echo "Logs:  ./logs.sh        (or: $COMPOSE logs -f)"
+echo "Logs:  ./logs.sh             (all services)"
+echo "       ./logs.sh server      (just one)"
 echo "Stop:  ./stop.sh"
