@@ -20,6 +20,13 @@ def solve_linear(req: LinearSolveRequest) -> LinearSolverResponse:
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
+@router.post("/solve", response_model=LinearSolverResponse)
+def solve(req: LinearSolveRequest) -> LinearSolverResponse:
+    try:
+        return linear_solver(req)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
 @router.post("/topsis-solve", response_model=TSSolveResponse)
 def solve_topsis(req: TSSolveRequest) -> TSSolveResponse:
     try:
