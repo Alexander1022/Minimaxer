@@ -21,7 +21,7 @@ def solve_linear(req: LinearSolveRequest) -> LinearSolverResponse:
         raise HTTPException(status_code=422, detail=str(exc))
 
 @router.post("/solve", response_model=LinearSolverResponse)
-def solve_legacy_linear(req: LinearSolveRequest) -> LinearSolverResponse:
+def solve_linear_compat(req: LinearSolveRequest) -> LinearSolverResponse:
     try:
         return linear_solver(req)
     except ValueError as exc:
