@@ -1,3 +1,8 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 def parse_float(value, field_name):
     if value in [None, ""]:
         return None
@@ -5,7 +10,7 @@ def parse_float(value, field_name):
     try:
         return float(value)
     except ValueError:
-        print(f"FLOAT ERROR: {field_name} трябва да е число, получено: {value!r}")
+        logger.warning("%s трябва да е число, получено: %r", field_name, value)
         raise ValueError(f"{field_name} трябва да е число, получено: {value!r}")
 
 
@@ -16,7 +21,7 @@ def parse_required_float(value, field_name):
     try:
         return float(value)
     except ValueError:
-        print(f"REQUIRED FLOAT ERROR: {field_name} трябва да е число, получено: {value!r}")
+        logger.warning("%s трябва да е число, получено: %r", field_name, value)
         raise ValueError(f"{field_name} трябва да е число, получено: {value!r}")
 
 
