@@ -44,7 +44,9 @@ def solve(req: SolveRequest) -> SolveResponse:
     n_alts = M.shape[0]
 
     ranges = M.max(axis=0) - M.min(axis=0)
-    safe_ranges = np.where(ranges == 0, 1.0, ranges)
+    global_max_range = float(np.max(ranges))
+    if global_max_range == 0.0:
+        global_max_range = 1.0
 
     concordance_mask = M[:, None, :] >= M[None, :, :]
     C = (concordance_mask * weights).sum(axis=2)
@@ -52,7 +54,7 @@ def solve(req: SolveRequest) -> SolveResponse:
 
     diff = M[None, :, :] - M[:, None, :]
     worse = diff > 0
-    norm_diff = diff / safe_ranges
+    norm_diff = diff / global_max_range
     masked = np.where(worse, norm_diff, -np.inf)
     D = masked.max(axis=2)
     D = np.where(np.isfinite(D), D, 0.0)
@@ -77,12 +79,61 @@ def solve(req: SolveRequest) -> SolveResponse:
                     )
                 )
 
-    dominated_mask = outrank.any(axis=0)
-    kernel = [req.alternatives[i].name for i in range(n_alts) if not dominated_mask[i]]
-    dominated_list = [req.alternatives[i].name for i in range(n_alts) if dominated_mask[i]]
+    index_counter = [0]
+    index = {}
+    lowlink = {}
+    on_stack = set()
+    stack = []
+    sccs = []
+    
+    def strongconnect(v):
+        index[v] = index_counter[0]
+        lowlink[v] = index_counter[0]
+        index_counter[0] += 1
+        stack.append(v)
+        on_stack.add(v)
+        
+        for w in range(n_alts):
+            if outrank[v, w]:
+                if w not in index:
+                    strongconnect(w)
+                    lowlink[v] = min(lowlink[v], lowlink[w])
+                elif w in on_stack:
+                    lowlink[v] = min(lowlink[v], index[w])
+                    
+        if lowlink[v] == index[v]:
+            scc = []
+            while True:
+                w = stack.pop()
+                on_stack.remove(w)
+                scc.append(w)
+                if w == v:
+                    break
+            sccs.append(scc)
+
+    for v in range(n_alts):
+        if v not in index:
+            strongconnect(v)
+            
+    kernel_indices = []
+    for scc in sccs:
+        is_dominated = False
+        scc_set = set(scc)
+        for v in scc:
+            for u in range(n_alts):
+                if u not in scc_set and outrank[u, v]:
+                    is_dominated = True
+                    break
+            if is_dominated:
+                break
+        if not is_dominated:
+            kernel_indices.extend(scc)
+            
+    kernel = [req.alternatives[i].name for i in kernel_indices]
+    dominated_list = [req.alternatives[i].name for i in range(n_alts) if i not in kernel_indices]
 
     status = "Optimal"
-    if len(kernel) == n_alts:
+    if not outranking_pairs:
         status = "NoOutranking"
 
     return SolveResponse(

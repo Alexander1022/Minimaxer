@@ -74,11 +74,11 @@ def test_low_concordance_threshold_expands_outranking():
     assert len(resp_loose.outranking) >= len(resp_strict.outranking)
 
 
-def test_all_pairs_outrank_yields_empty_kernel():
+def test_all_pairs_outrank_yields_all_kernel():
     req = _classic_request(c_thr=0.0, d_thr=1.0)
     resp = electre_solve(req)
     assert resp.status == "Optimal"
-    assert resp.kernel == []
+    assert set(resp.kernel) == {"A", "B", "C", "D"}
     assert len(resp.outranking) == 4 * 3
 
 
