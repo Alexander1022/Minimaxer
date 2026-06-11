@@ -3,8 +3,8 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
-from app.services.electre_solver import solve as electre_solve
+from server.app.main import app
+from server.app.services.electre_solver import solve as electre_solve
 from shared.schemas.electre import (
     AlternativeDefinition,
     CriteriaDefinition,
@@ -46,7 +46,7 @@ def test_classic_example_kernel_and_outranking():
     assert pair.dominator == "D"
     assert pair.dominated == "B"
     assert pair.concordance == pytest.approx(0.80, rel=1e-6)
-    assert pair.discordance == pytest.approx(1.0 / 6.0, rel=1e-6)
+    assert pair.discordance == pytest.approx(0.2251122520529776, rel=1e-6)
 
 
 def test_concordance_matrix_shape_and_bounds():

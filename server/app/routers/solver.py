@@ -2,9 +2,9 @@ from fastapi import APIRouter, HTTPException, status
 from shared.schemas.optimization import SolveRequest as LinearSolveRequest, SolveResponse as LinearSolverResponse
 from shared.schemas.topsis import SolveRequest as TSSolveRequest, SolveResponse as TSSolveResponse
 from shared.schemas.electre import SolveRequest as ESolveRequest, SolveResponse as ESolveResponse
-from app.services.pulp_solver import solve as linear_solver
-from app.services.topsis_solver import solve as topsis_solver
-from app.services.electre_solver import solve as electre_solver
+from server.app.services.pulp_solver import solve as linear_solver
+from server.app.services.topsis_solver import solve as topsis_solver
+from server.app.services.electre_solver import solve as electre_solver
 
 router = APIRouter()
 

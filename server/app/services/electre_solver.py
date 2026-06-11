@@ -1,5 +1,6 @@
 import math
 import numpy as np
+from collections import defaultdict
 
 from shared.schemas.electre import (
     SolveRequest,
@@ -17,7 +18,6 @@ def solve(req: SolveRequest) -> SolveResponse:
 
     criteria_names = [c.name for c in req.criterias]
     n_alts = len(req.alternatives)
-    n_crit = len(criteria_names)
 
     for alt in req.alternatives:
         missing = set(criteria_names) - set(alt.values.keys())
@@ -98,15 +98,64 @@ def solve(req: SolveRequest) -> SolveResponse:
                     )
                 )
 
-    is_dominated = np.zeros(n_alts, dtype=bool)
-    for j in range(n_alts):
-        for i in range(n_alts):
-            if i != j and outrank[i, j]:
-                is_dominated[j] = True
-                break
+    graph = defaultdict(list)
+    for i in range(n_alts):
+        for j in range(n_alts):
+            if outrank[i, j]:
+                graph[i].append(j)
 
-    kernel = [req.alternatives[i].name for i in range(n_alts) if not is_dominated[i]]
-    dominated_list = [req.alternatives[i].name for i in range(n_alts) if is_dominated[i]]
+    index = {}
+    lowlink = {}
+    on_stack = set()
+    stack = []
+    index_counter = 0
+    sccs = []
+
+    def strongconnect(v):
+        nonlocal index_counter
+        index[v] = index_counter
+        lowlink[v] = index_counter
+        index_counter += 1
+        stack.append(v)
+        on_stack.add(v)
+        for w in graph[v]:
+            if w not in index:
+                strongconnect(w)
+                lowlink[v] = min(lowlink[v], lowlink[w])
+            elif w in on_stack:
+                lowlink[v] = min(lowlink[v], index[w])
+        if lowlink[v] == index[v]:
+            scc = []
+            while True:
+                w = stack.pop()
+                on_stack.remove(w)
+                scc.append(w)
+                if w == v:
+                    break
+            sccs.append(scc)
+
+    for v in range(n_alts):
+        if v not in index:
+            strongconnect(v)
+
+    scc_id = [None] * n_alts
+    for idx, scc in enumerate(sccs):
+        for v in scc:
+            scc_id[v] = idx
+
+    is_scc_dominated = [False] * len(sccs)
+    for i in range(n_alts):
+        for j in range(n_alts):
+            if outrank[i, j] and scc_id[i] != scc_id[j]:
+                is_scc_dominated[scc_id[j]] = True
+
+    kernel_indices = []
+    for idx, scc in enumerate(sccs):
+        if not is_scc_dominated[idx]:
+            kernel_indices.extend(scc)
+
+    kernel = [req.alternatives[i].name for i in kernel_indices]
+    dominated_list = [req.alternatives[i].name for i in range(n_alts) if i not in kernel_indices]
 
     status = "Optimal"
     if not outranking_pairs:
