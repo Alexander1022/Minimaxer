@@ -1,114 +1,120 @@
-# Linear Programming Solver API
+# Minimaxer: Optimization & Decision-Making Platform
 
-A FastAPI service that solves linear programming (LP) and integer linear programming (ILP) problems via a single REST endpoint, powered by the [PuLP](https://coin-or.github.io/pulp/) library and the CBC solver.
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Gradio](https://img.shields.io/badge/Gradio-F97316?logo=gradio&logoColor=white)](https://gradio.app/)
+[![PuLP](https://img.shields.io/badge/PuLP-Optimization-blue)](https://coin-or.github.io/pulp/)
+[![pytest](https://img.shields.io/badge/pytest-0A9EDC?logo=pytest&logoColor=white)](https://docs.pytest.org/)
 
-## Setup
+Minimaxer is a comprehensive platform for mathematical optimization and multi-criteria decision-making. It features a robust FastAPI backend and an interactive Gradio web interface.
 
+## 🚀 Features
+
+### 1. Linear Programming (LP & ILP)
+*   **Solver**: Powered by [PuLP](https://coin-or.github.io/pulp/) and the CBC solver.
+*   **Capabilities**: Supports continuous, integer, and binary variables.
+*   **Interactive Modeling**: Build, preview, and solve optimization problems in real-time.
+
+### 2. Multi-Criteria Decision Making (MCDM)
+*   **TOPSIS**: Technique for Order of Preference by Similarity to Ideal Solution. Supports hybrid criteria (Quantitative, Qualitative, Ranking).
+*   **ELECTRE I**: Elimination and Choice Expressing Reality. Uses concordance and discordance indices to find the set of best alternatives (Kernel).
+
+### 3. Modern Web Interface
+*   Built with **Gradio** for a seamless user experience.
+*   Dynamic alternative management and criteria configuration.
+*   Mathematical model preview for verification.
+
+---
+
+## 🛠️ Installation & Setup
+
+### Prerequisites
+*   Python 3.10+
+*   Docker & Docker Compose (optional)
+
+### Local Development
+1. **Install Dependencies**:
+   ```bash
+   pip install -r server/requirements.txt
+   pip install -r client/requirements.txt
+   ```
+
+2. **Run the Server**:
+   ```bash
+   # From the project root
+   uvicorn server.app.main:app --reload
+   ```
+   API will be available at `http://localhost:8000`. Docs at `/docs`.
+
+3. **Run the Client**:
+   ```bash
+   python client/app.py
+   ```
+   Web interface will be available at `http://localhost:7860`.
+
+### Running with Docker
+Use the provided utility scripts:
 ```bash
-pip install -r requirements.txt
+./start.sh   # Build and start containers
+./logs.sh    # View logs
+./stop.sh    # Stop and remove containers
 ```
 
-## Running the server ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+---
 
-```bash
-uvicorn main:app --reload
-```
+## 📖 API Usage
 
-## Running in docker continer
+The backend exposes several endpoints for different solving methods under the `/api/solvers/` prefix.
 
-```bash
-./start.sh        # build + up -d
-./logs.sh         # tail
-./stop.sh         # down
-```
-## After starting 
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| **Linear** | `POST /api/solvers/linear` | LP/ILP solving via PuLP |
+| **TOPSIS** | `POST /api/solvers/topsis` | Multi-criteria ranking |
+| **ELECTRE** | `POST /api/solvers/electre` | Outranking method (ELECTRE I) |
 
-```text
-http://localhost:8000/ — root
-http://localhost:8000/api/health — healthcheck
-http://localhost:8000/api/solve — POST endpoint
-http://localhost:8000/docs — Swagger UI
-```
-
-Interactive API docs: `http://localhost:8000/docs`
-
-## Running the client ![Gradio](https://img.shields.io/badge/Gradio-F97316?logo=gradio&logoColor=white)
-
-```bash
-python3 client/app.py
-```
-
-## Endpoint
-
-### `POST /solve`
-
-Accepts a linear programming problem and returns the optimal solution.
-
-**Request body:**
-
+### Example: Linear Solver
+**Request**:
 ```json
 {
-  "name": "OptimizationProblem",
+  "name": "Production_Optimization",
   "direction": "maximize",
   "variables": [
-    {"name": "a", "low_bound": null, "up_bound": null, "category": "Continuous"},
-    {"name": "b", "low_bound": null, "up_bound": null, "category": "Continuous"},
-    {"name": "c", "low_bound": null, "up_bound": null, "category": "Continuous"}
+    {"name": "x", "low_bound": 0, "category": "Integer"}
   ],
-  "objective": {"coefficients": {"a": 1100, "b": 1200, "c": 1450}},
+  "objective": {"coefficients": {"x": 10}},
   "constraints": [
-    {"coefficients": {"a": 8, "b": 8, "c": 9}, "operator": "<=", "rhs": 10120},
-    {"coefficients": {"a": 8, "b": 9, "c": 11}, "operator": "<=", "rhs": 11000},
-    {"coefficients": {"a": 1}, "operator": ">=", "rhs": 0},
-    {"coefficients": {"b": 1}, "operator": ">=", "rhs": 0},
-    {"coefficients": {"c": 1}, "operator": ">=", "rhs": 0}
+    {"coefficients": {"x": 2}, "operator": "<=", "rhs": 100}
   ]
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `name` | `str` | Problem name (e.g., `"OptimizationProblem"`) |
-| `direction` | `"maximize"` \| `"minimize"` | Optimization direction |
-| `variables` | `list[VariableDefinition]` | Each has `name`, `low_bound`, `up_bound`, and `category` (`"Continuous"`, `"Integer"`, `"Binary"`) |
-| `objective` | `LinearExpression` | Has `coefficients` dict mapping variable names to coefficients |
-| `constraints` | `list[ConstraintDefinition]` | Each has `coefficients`, `operator` (`"<="`, `">="`, `"=="`), and `rhs` |
+---
 
-Any variable name used in `objective` or `constraints` that is absent from `variables` returns HTTP 422.
+## 🧪 Testing
 
-**Response body:**
-
-```json
-{
-  "problem_name": "OptimizationProblem",
-  "status": "Optimal",
-  "objective_value": 1485000.0,
-  "variables": [
-    {"name": "a", "value": 770.0},
-    {"name": "b", "value": 0.0},
-    {"name": "c", "value": 440.0}
-  ]
-}
-```
-
-`objective_value` and `variables` are `null` when the status is not `"Optimal"` (e.g. `"Infeasible"`, `"Unbounded"`).
-
-## Running tests ![pytest](https://img.shields.io/badge/pytest-0A9EDC?style=for-the-badge&logo=pytest&logoColor=white)
-
+We use `pytest` for unit and integration testing.
 ```bash
+# Run all tests
 pytest tests/ -v
+
+# Run backend specific tests
+pytest server/tests/ -v
 ```
 
-## Project structure
+---
 
+## 📁 Project Structure
+
+```text
+├── client/          # Gradio Web Interface
+│   ├── ui/          # Layout and dynamic UI components
+│   └── core/        # UI logic and model builders
+├── server/          # FastAPI Backend
+│   └── app/         # Core application logic
+│       ├── api/     # REST endpoints (Routers)
+│       └── services/# Solving logic (PuLP, NumPy)
+├── shared/          # Shared Pydantic schemas
+└── notebooks/       # Research & prototyping
 ```
-server/
-├── main.py           # FastAPI app + /solve endpoint
-├── schemas/          # Pydantic request & response schemas
-├── services/         # PuLP solving logic
-├── core/             # Configuration
-├── api/              # Route handlers
-├── requirements.txt
-└── test/
-    └── test_solver.py
-```
+
+## 📄 License
+This project is licensed under the MIT License.
