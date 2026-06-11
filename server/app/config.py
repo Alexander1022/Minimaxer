@@ -5,5 +5,6 @@ class Settings(BaseSettings):
 
     APP_NAME: str = "Decision Making System"
     ALLOWED_ORIGINS: list[str] = ["*"]
+    API_BASE_URL: str = "http://127.0.0.1:8000/api"
 
 settings = Settings()
