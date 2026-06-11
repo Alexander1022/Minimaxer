@@ -1,8 +1,10 @@
 from fastapi import APIRouter, HTTPException
 from shared.schemas.optimization import SolveRequest as LinearSolveRequest, SolveResponse as LinearSolverResponse
 from shared.schemas.topsis import SolveRequest as TSSolveRequest, SolveResponse as TSSolveResponse
+from shared.schemas.electre import SolveRequest as ESolveRequest, SolveResponse as ESolveResponse
 from server.services.pulp_solver import solve as linear_solver
 from server.services.topsis_solver import solve as topsis_solver
+from server.services.electre_solver import solve as electre_solver
 
 router = APIRouter()
 
@@ -31,5 +33,12 @@ def solve_linear_compat(req: LinearSolveRequest) -> LinearSolverResponse:
 def solve_topsis(req: TSSolveRequest) -> TSSolveResponse:
     try:
         return topsis_solver(req)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+@router.post("/electre-solve", response_model=ESolveResponse)
+def solve_electre(req: ESolveRequest) -> ESolveResponse:
+    try:
+        return electre_solver(req)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
