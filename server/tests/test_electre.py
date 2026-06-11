@@ -1,5 +1,4 @@
 import math
-
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
@@ -74,12 +73,12 @@ def test_low_concordance_threshold_expands_outranking():
     assert len(resp_loose.outranking) >= len(resp_strict.outranking)
 
 
-def test_all_pairs_outrank_yields_empty_kernel():
+def test_all_pairs_outrank_yields_all_kernel():
     req = _classic_request(c_thr=0.0, d_thr=1.0)
     resp = electre_solve(req)
     assert resp.status == "Optimal"
-    assert resp.kernel == []
-    assert len(resp.outranking) == 4 * 3
+    assert set(resp.kernel) == {"A", "B", "C", "D"}
+    assert len(resp.outranking) == 4 * 3  # всички насочени ребра
 
 
 def test_no_outranking_status_when_thresholds_unsatisfiable():
@@ -260,6 +259,61 @@ def test_weights_close_to_one_within_tolerance_are_accepted():
     )
     resp = electre_solve(req)
     assert resp.status == "Optimal"
+
+
+def test_zero_weights_ignore_criteria():
+    req = SolveRequest(
+        problem_name="ZeroWeights",
+        criterias=[
+            CriteriaDefinition(name="a", direction=CriteriaDirection.MAXIMIZE, weight=1.0),
+            CriteriaDefinition(name="b", direction=CriteriaDirection.MAXIMIZE, weight=0.0),
+        ],
+        alternatives=[
+            AlternativeDefinition(name="X", values={"a": 5, "b": 100}),
+            AlternativeDefinition(name="Y", values={"a": 4, "b": 200}),
+        ],
+        concordance_threshold=0.5,
+        discordance_threshold=0.5,
+    )
+    resp = electre_solve(req)
+    assert any(p.dominator == "X" and p.dominated == "Y" for p in resp.outranking)
+
+
+def test_all_values_equal():
+    req = SolveRequest(
+        problem_name="Equal",
+        criterias=[
+            CriteriaDefinition(name="a", direction=CriteriaDirection.MAXIMIZE, weight=0.5),
+            CriteriaDefinition(name="b", direction=CriteriaDirection.MAXIMIZE, weight=0.5),
+        ],
+        alternatives=[
+            AlternativeDefinition(name="U", values={"a": 1, "b": 1}),
+            AlternativeDefinition(name="V", values={"a": 1, "b": 1}),
+        ],
+        concordance_threshold=0.0,
+        discordance_threshold=1.0,
+    )
+    resp = electre_solve(req)
+    assert set(resp.kernel) == {"U", "V"}
+
+
+def test_normalization_preserves_concordance_ranking():
+    req = SolveRequest(
+        problem_name="Normalize",
+        criterias=[
+            CriteriaDefinition(name="x", direction=CriteriaDirection.MAXIMIZE, weight=1.0),
+        ],
+        alternatives=[
+            AlternativeDefinition(name="P", values={"x": 100}),
+            AlternativeDefinition(name="Q", values={"x": 1}),
+        ],
+        concordance_threshold=0.0,
+        discordance_threshold=1.0,
+    )
+    resp = electre_solve(req)
+    C = np.array(resp.concordance_matrix)
+    assert C[0, 1] == 1.0   # P над Q
+    assert C[1, 0] == 0.0
 
 
 CLASSIC_API_PAYLOAD = {

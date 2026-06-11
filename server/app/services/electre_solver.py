@@ -16,6 +16,8 @@ def solve(req: SolveRequest) -> SolveResponse:
         )
 
     criteria_names = [c.name for c in req.criterias]
+    n_alts = len(req.alternatives)
+    n_crit = len(criteria_names)
 
     for alt in req.alternatives:
         missing = set(criteria_names) - set(alt.values.keys())
@@ -24,38 +26,57 @@ def solve(req: SolveRequest) -> SolveResponse:
                 f"Алтернативата '{alt.name}' има липсващи стойности за критерии: {missing}"
             )
 
-    matrix = np.array(
+    A = np.array(
         [[alt.values[c_name] for c_name in criteria_names] for alt in req.alternatives],
         dtype=float,
     )
+
     weights = np.array([c.weight for c in req.criterias], dtype=float)
+    directions = np.array([c.direction == CriteriaDirection.MAXIMIZE for c in req.criterias])
 
     if not math.isclose(np.sum(weights), 1.0, rel_tol=1e-5):
-        raise ValueError(
-            f"Сумата на тежестите трябва да е 1.0, а в момента е {np.sum(weights):.4f}"
-        )
+        raise ValueError(f"Сумата на тежестите трябва да е 1.0, а е {np.sum(weights):.4f}")
 
-    benefit = np.array(
-        [c.direction == CriteriaDirection.MAXIMIZE for c in req.criterias],
-        dtype=bool,
-    )
+    norms = np.sqrt(np.sum(A ** 2, axis=0))
+    norms[norms == 0] = 1.0
+    R = A / norms
 
-    M = np.where(benefit, matrix, -matrix)
-    n_alts = M.shape[0]
+    V = R * weights
 
-    ranges = M.max(axis=0) - M.min(axis=0)
-    safe_ranges = np.where(ranges == 0, 1.0, ranges)
-
-    concordance_mask = M[:, None, :] >= M[None, :, :]
-    C = (concordance_mask * weights).sum(axis=2)
+    C = np.zeros((n_alts, n_alts))
+    for k in range(n_alts):
+        for l in range(n_alts):
+            if k == l:
+                continue
+            better_or_equal = np.where(
+                directions,
+                A[k, :] >= A[l, :],
+                A[k, :] <= A[l, :]
+            )
+            C[k, l] = np.sum(weights[better_or_equal])
     np.fill_diagonal(C, 0.0)
 
-    diff = M[None, :, :] - M[:, None, :]
-    worse = diff > 0
-    norm_diff = diff / safe_ranges
-    masked = np.where(worse, norm_diff, -np.inf)
-    D = masked.max(axis=2)
-    D = np.where(np.isfinite(D), D, 0.0)
+    D = np.zeros((n_alts, n_alts))
+    for k in range(n_alts):
+        for l in range(n_alts):
+            if k == l:
+                continue
+            better_or_equal = np.where(
+                directions,
+                A[k, :] >= A[l, :],
+                A[k, :] <= A[l, :]
+            )
+            D_kl = ~better_or_equal
+            if not np.any(D_kl):
+                D[k, l] = 0.0
+                continue
+            diff = np.abs(V[k, :] - V[l, :])
+            numerator = np.max(diff[D_kl])
+            denominator = np.max(diff)
+            if denominator == 0:
+                D[k, l] = 0.0
+            else:
+                D[k, l] = numerator / denominator
     np.fill_diagonal(D, 0.0)
 
     c_star = req.concordance_threshold
@@ -77,12 +98,18 @@ def solve(req: SolveRequest) -> SolveResponse:
                     )
                 )
 
-    dominated_mask = outrank.any(axis=0)
-    kernel = [req.alternatives[i].name for i in range(n_alts) if not dominated_mask[i]]
-    dominated_list = [req.alternatives[i].name for i in range(n_alts) if dominated_mask[i]]
+    is_dominated = np.zeros(n_alts, dtype=bool)
+    for j in range(n_alts):
+        for i in range(n_alts):
+            if i != j and outrank[i, j]:
+                is_dominated[j] = True
+                break
+
+    kernel = [req.alternatives[i].name for i in range(n_alts) if not is_dominated[i]]
+    dominated_list = [req.alternatives[i].name for i in range(n_alts) if is_dominated[i]]
 
     status = "Optimal"
-    if len(kernel) == n_alts:
+    if not outranking_pairs:
         status = "NoOutranking"
 
     return SolveResponse(
