@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from server.main import app
-from server.services.electre_solver import solve as electre_solve
+from app.main import app
+from app.services.electre_solver import solve as electre_solve
 from shared.schemas.electre import (
     AlternativeDefinition,
     CriteriaDefinition,
@@ -288,7 +288,7 @@ def test_health_endpoint():
 
 
 def test_api_classic_payload_returns_expected_kernel():
-    resp = client.post("/api/electre-solve", json=CLASSIC_API_PAYLOAD)
+    resp = client.post("/api/solvers/electre", json=CLASSIC_API_PAYLOAD)
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "Optimal"
@@ -299,7 +299,7 @@ def test_api_classic_payload_returns_expected_kernel():
 
 def test_api_default_thresholds_are_used_when_omitted():
     payload = {k: v for k, v in CLASSIC_API_PAYLOAD.items() if "threshold" not in k}
-    resp = client.post("/api/electre-solve", json=payload)
+    resp = client.post("/api/solvers/electre", json=payload)
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "Optimal"
@@ -310,7 +310,7 @@ def test_api_invalid_weights_return_422():
     bad["criterias"] = [
         {**c, "weight": 0.1} for c in CLASSIC_API_PAYLOAD["criterias"]
     ]
-    resp = client.post("/api/electre-solve", json=bad)
+    resp = client.post("/api/solvers/electre", json=bad)
     assert resp.status_code == 422
     assert "тежест" in resp.json()["detail"].lower()
 
@@ -323,25 +323,25 @@ def test_api_missing_value_returns_422():
         {"name": "C", "values": {"c1": 14, "c2": 10, "c3": 5, "c4": 12}},
         {"name": "D", "values": {"c1": 9, "c2": 7, "c3": 9, "c4": 11}},
     ]
-    resp = client.post("/api/electre-solve", json=bad)
+    resp = client.post("/api/solvers/electre", json=bad)
     assert resp.status_code == 422
 
 
 def test_api_empty_criterias_returns_200_with_empty_status():
     payload = {**CLASSIC_API_PAYLOAD, "criterias": []}
-    resp = client.post("/api/electre-solve", json=payload)
+    resp = client.post("/api/solvers/electre", json=payload)
     assert resp.status_code == 200
     assert resp.json()["status"] == "EmptyInput"
 
 
 def test_api_invalid_concordance_threshold_returns_422():
     bad = {**CLASSIC_API_PAYLOAD, "concordance_threshold": 1.5}
-    resp = client.post("/api/electre-solve", json=bad)
+    resp = client.post("/api/solvers/electre", json=bad)
     assert resp.status_code == 422
 
 
 def test_api_response_preserves_qualitative_type_in_request():
-    resp = client.post("/api/electre-solve", json=CLASSIC_API_PAYLOAD)
+    resp = client.post("/api/solvers/electre", json=CLASSIC_API_PAYLOAD)
     assert resp.status_code == 200
     data = resp.json()
     assert "alternative_names" in data
@@ -349,7 +349,7 @@ def test_api_response_preserves_qualitative_type_in_request():
 
 
 def test_api_outranking_pair_has_required_fields():
-    resp = client.post("/api/electre-solve", json=CLASSIC_API_PAYLOAD)
+    resp = client.post("/api/solvers/electre", json=CLASSIC_API_PAYLOAD)
     assert resp.status_code == 200
     pair = resp.json()["outranking"][0]
     assert set(pair.keys()) == {"dominator", "dominated", "concordance", "discordance"}
