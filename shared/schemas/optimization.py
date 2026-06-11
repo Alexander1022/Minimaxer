@@ -47,4 +47,4 @@ class SolveResponse(BaseModel):
     problem_name: str
     status: str
     objective_value: float | None
-    variables: list[VariableResult]
+    variables: list[VariableResult] | None = None

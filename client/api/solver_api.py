@@ -1,29 +1,41 @@
-import requests
-from typing import Union
+import logging
 
-from config import API_BASE_URL
+import httpx
+
+from config import settings
 from shared.schemas.optimization import SolveRequest as LinearSolveRequest
 from shared.schemas.topsis import SolveRequest as TSSolveRequest
 
+logger = logging.getLogger(__name__)
 
-def solve_via_api(req: Union[LinearSolveRequest, TSSolveRequest]) -> dict:
+_transport = httpx.HTTPTransport(retries=3)
+_client = httpx.Client(transport=_transport, timeout=10)
+
+
+def solve_via_api(req: LinearSolveRequest | TSSolveRequest) -> dict:
     if isinstance(req, TSSolveRequest):
-        endpoint = f"{API_BASE_URL}/topsis-solve"
+        endpoint = f"{settings.API_BASE_URL}/solvers/topsis"
     else:
-        endpoint = f"{API_BASE_URL}/linear-solve"
+        endpoint = f"{settings.API_BASE_URL}/solvers/linear"
 
-    response = requests.post(
-        endpoint,
-        json=req.model_dump(mode="json"),
-        timeout=10,
-    )
-
-    if response.status_code != 200:
+    try:
+        response = _client.post(
+            endpoint,
+            json=req.model_dump(mode="json"),
+        )
+        response.raise_for_status()
+    except httpx.ConnectError:
+        logger.error("Не може да се свърже със сървъра на адрес %s", settings.API_BASE_URL)
+        raise ValueError("Сървърът не е достъпен. Проверете дали е стартиран.")
+    except httpx.TimeoutException:
+        logger.error("Времето за отговор от сървъра изтече: %s", endpoint)
+        raise ValueError("Времето за отговор от сървъра изтече. Опитайте отново.")
+    except httpx.HTTPStatusError as exc:
         try:
-            detail = response.json().get("detail")
+            detail = exc.response.json().get("detail")
         except Exception:
-            detail = response.text
-
+            detail = exc.response.text
+        logger.warning("Сървърът върна грешка %s: %s", exc.response.status_code, detail)
         raise ValueError(detail)
 
     return response.json()

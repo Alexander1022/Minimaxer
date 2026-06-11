@@ -24,7 +24,7 @@ class AlternativeDefinition(BaseModel):
     values: dict[str, float] = Field(...)
 
 class SolveRequest(BaseModel):
-    problem_name: str = Field(..., examples="Име на задача")
+    problem_name: str = Field(..., examples=["Име на задача"])
     criterias: list[CriteriaDefinition] = Field(..., description="Списък от критерии")
     alternatives: list[AlternativeDefinition] = Field(..., description="Списък от алтернативи")
 
