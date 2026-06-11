@@ -33,6 +33,20 @@ from ui.topsis_actions import (
     topsis_cancel_delete,
 )
 
+from ui.electre_actions import (
+    initialize_electre_saved_data,
+    update_electre_history_summary,
+    add_electre_criteria,
+    sync_electre_alternatives_columns,
+    solve_electre_from_ui,
+    handle_electre_overwrite,
+    handle_electre_rename,
+    solve_electre_only,
+    load_selected_electre_solution,
+    electre_arm_delete,
+    electre_cancel_delete,
+)
+
 def create_app():
     with gr.Blocks(theme=gr.Theme.from_hub("hmb/spark"), title="Оптимизация") as app:
         gr.Markdown("# Minimaxer")
@@ -344,6 +358,153 @@ def create_app():
                                     t_saved_request_output = gr.JSON(label="Запазена заявка")
                                     t_saved_response_output = gr.JSON(label="Запазен отговор")
 
+            with gr.Tab("ELECTRE I"):
+                e_saved_solutions = gr.BrowserState(
+                    storage_key="minimaxer_electre_history",
+                    secret="minimaxer-electre-history-secret-v1",
+                    default_value={},
+                )
+                e_pending_request = gr.State({})
+                e_delete_armed = gr.State(False)
+
+                with gr.Row():
+
+                    with gr.Column(scale=1, min_width=300):
+                        gr.Markdown("## Управление на ELECTRE задачи")
+
+                        with gr.Group(visible=False) as e_conflict_ui:
+                            gr.Markdown("### ⚠️ Името вече съществува")
+                            gr.Markdown("Задача с това име вече е запазена. Изберете действие:")
+                            with gr.Row():
+                                e_overwrite_btn = gr.Button("Презапиши", variant="primary")
+                            gr.Markdown("--- или запишете с ново име ---")
+                            e_new_name_input = gr.Textbox(label="Ново име", placeholder="Въведете ново име...")
+                            e_rename_save_btn = gr.Button("Запази с ново име", variant="secondary")
+
+                        gr.Markdown("### Запазени решения")
+                        e_saved_list = gr.Radio(
+                            label="Изберете задача",
+                            choices=[],
+                            interactive=True,
+                            container=True,
+                        )
+
+                        with gr.Row():
+                            e_delete_btn = gr.Button("Изтрий избраната", variant="stop", scale=2)
+                            e_delete_cancel_btn = gr.Button("Отказ", variant="secondary", scale=1, visible=False)
+
+                        e_delete_hint = gr.Markdown("", visible=False)
+
+                        gr.Markdown("### Обобщение на историята")
+                        e_history_summary = gr.Markdown("Няма запазени ELECTRE решения.")
+
+                    with gr.Column(scale=3):
+                        with gr.Tabs():
+                            with gr.Tab("1. Критерии"):
+                                e_problem_name = gr.Textbox(
+                                    label="Име на задача",
+                                    value="Примерна ELECTRE задача",
+                                    scale=2,
+                                )
+
+                                gr.Markdown("### Дефиниране на критерии")
+                                e_open_crit_panel_btn = gr.Button("Добави критерий", variant="secondary")
+
+                                with Modal(visible=False) as e_crit_panel:
+                                    gr.Markdown("### Нов критерий")
+                                    with gr.Row():
+                                        e_crit_name_input = gr.Textbox(label="Име", placeholder="цена")
+                                        e_crit_weight_input = gr.Textbox(label="Тежест", placeholder="напр. 0.4")
+                                    with gr.Row():
+                                        e_crit_direction_input = gr.Dropdown(
+                                            label="Посока",
+                                            choices=[("Максимизиране (maximize)", "maximize"),
+                                                     ("Минимизиране (minimize)", "minimize")],
+                                            value="maximize",
+                                        )
+                                        e_crit_type_input = gr.Dropdown(
+                                            label="Тип",
+                                            choices=[("Количествен (quantitative)", "quantitative"),
+                                                     ("Качествен (qualitative)", "qualitative")],
+                                            value="quantitative",
+                                        )
+                                    with gr.Row():
+                                        e_add_crit_btn = gr.Button("Добави", variant="primary")
+                                        e_cancel_crit_btn = gr.Button("Отказ")
+
+                                e_criteria_table = gr.Dataframe(
+                                    label="Списък с критерии",
+                                    headers=["име", "посока", "тежест", "тип"],
+                                    datatype=["str", "str", "number", "str"],
+                                    value=[
+                                        ["цена", "minimize", 0.4, "quantitative"],
+                                        ["качество", "maximize", 0.6, "qualitative"],
+                                    ],
+                                    row_count=(2, "dynamic"),
+                                    col_count=(4, "fixed"),
+                                    interactive=True,
+                                )
+
+                            with gr.Tab("2. Алтернативи"):
+                                gr.Markdown("### Дефиниране на алтернативи")
+                                gr.Markdown("Попълнете стойностите за всяка алтернатива по съответните критерии. За качествени критерии използвайте числова скала (напр. 1–5).")
+
+                                e_sync_btn = gr.Button("Синхронизирай колони (Ако сте променили критериите ръчно)", variant="secondary")
+
+                                e_alternatives_table = gr.Dataframe(
+                                    label="Алтернативи",
+                                    headers=["Име на алтернатива", "цена", "качество"],
+                                    datatype="str",
+                                    value=[
+                                        ["Алт 1", "200", "5"],
+                                        ["Алт 2", "150", "3"],
+                                    ],
+                                    interactive=True,
+                                )
+
+                            with gr.Tab("3. Решаване и Резултати"):
+                                gr.Markdown("### Прагове на ELECTRE I")
+                                with gr.Row():
+                                    e_concordance_threshold = gr.Number(
+                                        label="Праг на съгласие (c*)",
+                                        value=0.7,
+                                        minimum=0.0,
+                                        maximum=1.0,
+                                        step=0.05,
+                                    )
+                                    e_discordance_threshold = gr.Number(
+                                        label="Праг на несъгласие (d*)",
+                                        value=0.3,
+                                        minimum=0.0,
+                                        maximum=1.0,
+                                        step=0.05,
+                                    )
+
+                                with gr.Row():
+                                    e_solve_btn = gr.Button("Реши и Запази", variant="primary")
+                                    e_solve_only_btn = gr.Button("Реши", variant="primary")
+
+                                e_status_message = gr.Textbox(label="Статус", interactive=False)
+
+                                gr.Markdown("### Резултати")
+                                e_kernel_output = gr.Markdown("Ядрото ще се покаже тук след решаване.")
+                                e_result_table = gr.Dataframe(
+                                    label="Отношения на превъзходство",
+                                    headers=["Превъзхожда", "Превъзхождан", "Съгласие (C)", "Несъгласие (D)"],
+                                    interactive=False,
+                                )
+
+                                with gr.Accordion("Детайли от заявката (JSON)", open=False):
+                                    with gr.Row():
+                                        e_request_output = gr.JSON(label="Изпратена заявка")
+                                        e_response_output = gr.JSON(label="Отговор от решаващия модул")
+
+                            with gr.Tab("4. Запазени решения (Детайли)"):
+                                gr.Markdown("### Преглед на запазени данни")
+                                with gr.Row():
+                                    e_saved_request_output = gr.JSON(label="Запазена заявка")
+                                    e_saved_response_output = gr.JSON(label="Запазен отговор")
+
         
         solve_outputs = [
             conflict_ui, pending_request, response_output,
@@ -522,6 +683,87 @@ def create_app():
         t_delete_cancel_btn.click(
             fn=topsis_cancel_delete,
             outputs=[t_delete_armed, t_delete_btn, t_delete_cancel_btn, t_delete_hint],
+        )
+
+        e_solve_outputs = [
+            e_conflict_ui, e_pending_request, e_response_output,
+            e_kernel_output, e_result_table, e_request_output,
+            e_saved_solutions, e_saved_list, e_history_summary, e_status_message,
+        ]
+
+        e_saved_solutions.change(
+            fn=update_electre_history_summary,
+            inputs=e_saved_solutions,
+            outputs=e_history_summary,
+        )
+        e_saved_solutions.change(
+            fn=lambda s: gr.update(choices=list(s.keys()) if s else []),
+            inputs=e_saved_solutions,
+            outputs=e_saved_list,
+        )
+
+        app.load(
+            fn=initialize_electre_saved_data,
+            inputs=[e_saved_solutions],
+            outputs=[e_history_summary, e_saved_list],
+        )
+
+        e_open_crit_panel_btn.click(fn=show_panel, outputs=e_crit_panel)
+        e_cancel_crit_btn.click(fn=hide_panel, outputs=e_crit_panel)
+        e_add_crit_btn.click(
+            fn=add_electre_criteria,
+            inputs=[e_crit_name_input, e_crit_direction_input, e_crit_weight_input, e_crit_type_input, e_criteria_table, e_alternatives_table],
+            outputs=[e_criteria_table, e_alternatives_table, e_crit_name_input, e_crit_direction_input, e_crit_weight_input, e_crit_type_input, e_crit_panel],
+        )
+
+        e_sync_btn.click(
+            fn=sync_electre_alternatives_columns,
+            inputs=[e_criteria_table, e_alternatives_table],
+            outputs=[e_alternatives_table],
+        )
+
+        e_solve_btn.click(
+            fn=solve_electre_from_ui,
+            inputs=[e_problem_name, e_criteria_table, e_alternatives_table, e_concordance_threshold, e_discordance_threshold, e_saved_solutions],
+            outputs=e_solve_outputs,
+        )
+
+        e_solve_only_btn.click(
+            fn=solve_electre_only,
+            inputs=[e_problem_name, e_criteria_table, e_alternatives_table, e_concordance_threshold, e_discordance_threshold],
+            outputs=e_solve_outputs,
+        )
+
+        e_overwrite_btn.click(
+            fn=handle_electre_overwrite,
+            inputs=[e_pending_request, e_saved_solutions],
+            outputs=e_solve_outputs,
+        )
+
+        e_rename_save_btn.click(
+            fn=handle_electre_rename,
+            inputs=[e_new_name_input, e_pending_request, e_saved_solutions],
+            outputs=e_solve_outputs,
+        )
+
+        e_saved_list.change(
+            fn=load_selected_electre_solution,
+            inputs=[e_saved_list, e_saved_solutions],
+            outputs=[e_problem_name, e_criteria_table, e_alternatives_table, e_concordance_threshold, e_discordance_threshold, e_response_output, e_saved_request_output, e_saved_response_output, e_kernel_output, e_result_table, e_request_output, e_status_message],
+        ).then(
+            fn=electre_cancel_delete,
+            outputs=[e_delete_armed, e_delete_btn, e_delete_cancel_btn, e_delete_hint],
+        )
+
+        e_delete_btn.click(
+            fn=electre_arm_delete,
+            inputs=[e_saved_list, e_delete_armed, e_saved_solutions],
+            outputs=[e_delete_armed, e_delete_btn, e_delete_cancel_btn, e_delete_hint, e_saved_solutions, e_saved_list, e_history_summary, e_status_message],
+        )
+
+        e_delete_cancel_btn.click(
+            fn=electre_cancel_delete,
+            outputs=[e_delete_armed, e_delete_btn, e_delete_cancel_btn, e_delete_hint],
         )
 
     return app
